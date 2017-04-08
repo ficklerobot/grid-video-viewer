@@ -2,6 +2,10 @@
 <resources>
 
     <string name="app_name">GridVideoViewer DEMO</string>
-
+    <string name="column_count">列数:</string>
+    <string name="playback_count">同時再整数</string>
+    <string name="tap_action">TAP ACTION:</string>
+    <string name="playback_count_info">同時に再生できるビデオ数は、動画の画質及び端末の性能に依存します:</string>
+    <string name="open_button">Open</string>
 
 </resources>

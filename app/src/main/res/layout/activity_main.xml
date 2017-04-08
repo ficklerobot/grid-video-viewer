@@ -15,7 +15,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="列数:"
+            android:text="@string/column_count"
             
             />
         
@@ -84,7 +84,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_margin="8dp"
-            android:text="同時に再生できるビデオ数は、動画の画質及び端末の性能に依存します:"            
+            android:text="@string/playback_count_info"
             />
         
     </LinearLayout> 
@@ -101,7 +101,7 @@
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
           android:textAppearance="?android:attr/textAppearanceLarge"
-          android:text="Open" />
+          android:text="@string/open_button" />
      </LinearLayout>
 </LinearLayout>
 
