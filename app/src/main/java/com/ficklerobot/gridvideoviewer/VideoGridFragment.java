@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Locale;
 
 import android.app.Fragment;
 import android.app.ProgressDialog;
@@ -63,27 +64,30 @@ import android.widget.Toast;
 
 import com.ficklerobot.gridvideoviewer.GalleryActivity.OnBackPressListener;
 
+import static android.R.attr.id;
+
 public class VideoGridFragment extends Fragment
         implements OnPreparedListener, SurfaceTextureListener, OnBackPressListener, OnCompletionListener {
 
     private static final String TAG = "VideoGrid";
 
+    /** グリッドの列数 */
     private int mColCount;
-    private int mPlayCount;
+    /** グリッドをタップした際のアクション種別 */
     private int mTapAction;
 
     private RelativeLayout mRootView;
-
     private ListView mVideoList;
+    /** 拡大再生する用のView */
     private TextureView mPickedVideoView;
     private MediaPlayer mPlayer;
 
     private ArrayList<VideoData> mVideoUriList;
     private HashMap<Integer, DecoderSurface> mSurfaceSet;
-
-    int mTextureId; //TODO リネーム
+    /** DecoderSurfaceの番号 */
+    private int mSurfaceNumber;
     private ThumbnailCache mThumbnailCache;
-
+    /** 画面サイズ */
     private int[] mWindowSize;
 
     private static DecoderSurface.DecodeQueueManager stQueueManager
@@ -96,13 +100,11 @@ public class VideoGridFragment extends Fragment
         Bundle args = this.getArguments();
 
         mColCount = args.getInt(GalleryActivity.EXT_COL_COUNT, 2);
-        mPlayCount = args.getInt(GalleryActivity.EXT_PLAY_COUNT, 1);
+        int playCount = args.getInt(GalleryActivity.EXT_PLAY_COUNT, 1);
         mTapAction = args.getInt(GalleryActivity.EXT_TAP_ACTION, MainActivity.TAP_ACTION_FLOAT);
 
-        mWindowSize = new int[2];
-
         Context context = getActivity().getApplicationContext();
-
+        mWindowSize = new int[2];
         DisplayMetrics display = context.getResources().getDisplayMetrics();
         mWindowSize[0] = display.widthPixels;
         mWindowSize[1] = display.heightPixels;
@@ -116,11 +118,11 @@ public class VideoGridFragment extends Fragment
 
         mRootView.addView(mVideoList, listLayoutParams);
 
-        mVideoUriList = new ArrayList<VideoData>();
+        mVideoUriList = new ArrayList<>();
         mThumbnailCache = new ThumbnailCache(context);
-        mSurfaceSet = new HashMap<Integer, DecoderSurface>();
+        mSurfaceSet = new HashMap<>();
 
-        stQueueManager.setMaxRunCount(mPlayCount);
+        stQueueManager.setMaxRunCount(playCount);
 
         return mRootView;
     }
@@ -135,12 +137,12 @@ public class VideoGridFragment extends Fragment
             mSurfaceSet.clear();
         }
 
-        updateVideoGrid();
+        loadVideoUrlList();
 
-        MakeVideoListTask task = new MakeVideoListTask();
+        PrepareVideoListTask task = new PrepareVideoListTask();
         task.execute(0);
 
-        makePickupPlayer();
+        initPickupPlayer();
     }
 
     @Override
@@ -157,6 +159,11 @@ public class VideoGridFragment extends Fragment
         releaseVideos();
     }
 
+    /**
+     * リリース処理<br>
+     * onPause/onDestroyから呼び出され、動画を停止して各リソースをクリアする
+     *
+     */
     private void releaseVideos() {
 
         synchronized (this) {
@@ -196,7 +203,11 @@ public class VideoGridFragment extends Fragment
         stQueueManager.clear();
     }
 
-    private void updateVideoGrid() {
+    /**
+     * メディアストアから動画リストを読み込む
+     *
+     */
+    private void loadVideoUrlList() {
 
         ContentResolver resolver = getActivity().getApplicationContext().getContentResolver();
 
@@ -228,24 +239,30 @@ public class VideoGridFragment extends Fragment
             }
         }
 
-        mTextureId = 0;
-//        Context context = getActivity().getApplicationContext();
-//        GridAdapter adapter = new GridAdapter( context, mColCount );
-//        mVideoList.setAdapter(adapter);
-
+        mSurfaceNumber = 0;
     }
 
-
+    /**
+     * 動画リストのアダプター<br>
+     * GridViewではなくListViewにグリッド表示を行うため、列数個分のViewを持ったリスト行Viewを作成している
+     *
+     */
     private class GridAdapter extends BaseAdapter
             implements OnClickListener {
 
         Context context;
         LayoutInflater inflater;
-
+        /** 各セルのViewのサイズ。画面幅/列数 */
         int cellSize;
+        /** 列数 */
         int colCount;
 
-        public GridAdapter(Context context, int colCount) {
+        /**
+         *
+         * @param context Context
+         * @param colCount 列数
+         */
+        GridAdapter(Context context, int colCount) {
             this.context = context;
             inflater = LayoutInflater.from(context);
 
@@ -259,7 +276,7 @@ public class VideoGridFragment extends Fragment
         }
 
         @Override
-        public Object getItem(int position) {
+        public VideoData getItem(int position) {
 
             if (position < mVideoUriList.size()) {
                 return mVideoUriList.get(position);
@@ -275,7 +292,6 @@ public class VideoGridFragment extends Fragment
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-
             ViewHolder holder;
 
             if (convertView == null) {
@@ -304,7 +320,7 @@ public class VideoGridFragment extends Fragment
                     holder.imageViews[i].setLayoutParams(imageLayoutParams);
 
                     DecoderSurface ds = new DecoderSurface(
-                            mTextureId++, holder.imageViews[i], holder.textureViews[i]);
+                            mSurfaceNumber++, holder.imageViews[i], holder.textureViews[i]);
                     holder.textureViews[i].setSurfaceTextureListener(ds);
 
                     int surfaceNum = position * colCount + i;
@@ -329,9 +345,8 @@ public class VideoGridFragment extends Fragment
             }
 
             for (int i = 0; i < colCount; i++) {
-
                 int dataPosition = position * colCount + i;
-                final VideoData data = (VideoData) getItem(dataPosition);
+                final VideoData data = getItem(dataPosition);
 
                 Drawable thumb;
                 Resources res = getResources();
@@ -339,7 +354,6 @@ public class VideoGridFragment extends Fragment
                 if (data != null) {
                     thumb = new BitmapDrawable(
                             res, mThumbnailCache.getBitmapFromMemCache(data)); //TODO 非同期でやる
-
                 } else {
                     thumb = res.getDrawable(R.drawable.blank_panel);
                 }
@@ -360,7 +374,6 @@ public class VideoGridFragment extends Fragment
         }
 
         private class ViewHolder {
-
             TextureView[] textureViews;
             ImageView[] imageViews;
 
@@ -371,31 +384,36 @@ public class VideoGridFragment extends Fragment
         }
 
         @Override
+        /**
+         * セルがタップされた際の動作<br>
+         * アクション種別に応じた形式で動画を再生する
+         */
         public void onClick(View v) {
             DecoderSurface ds = (DecoderSurface) v.getTag();
 
             if (mTapAction == MainActivity.TAP_ACTION_FLOAT) {
-
                 if (ds != null && ds.videoData != null) {
                     String filePath = ds.videoData.videoUri.getPath();
-                    pickupVideo(filePath, ds.videoData.textureMatrix);
+                    pickupVideo(filePath);
                 }
             } else {
-
                 ds.play(true);
             }
         }
     }
 
+    /**
+     * ピックアップ動画Viewを非表示にする
+     */
     private void hidePickedVideo() {
-
-        //ここで映像をクリア
         mPickedVideoView.clearAnimation();
         mPickedVideoView.setVisibility(View.GONE);
     }
 
-    private void makePickupPlayer() {
-
+    /**
+     * ピックアップ再生用のViewとMediaPlayerを初期化する
+     */
+    private void initPickupPlayer() {
         mPlayer = new MediaPlayer();
         mPlayer.setOnPreparedListener(this);
         mPlayer.setOnCompletionListener(this);
@@ -413,17 +431,13 @@ public class VideoGridFragment extends Fragment
         mRootView.addView(mPickedVideoView, videoLayoutParams);
     }
 
-    private void pickupVideo(String filePath, Matrix mtx) {
-
-        if (filePath == null) {
-            return;
-        }
-
-        if (mtx == null) {
-            //TODO セット
-        }
-
-        if (mPlayer == null) {
+    /**
+     * 動画をピックアップ再生する
+     *
+     * @param filePath 動画のファイルパス
+     */
+    private void pickupVideo(String filePath) {
+        if (filePath == null || mPlayer == null) {
             return;
         }
 
@@ -452,7 +466,6 @@ public class VideoGridFragment extends Fragment
             Log.d(TAG, "Failed to setDataSource file:" + filePath
                     + " msg:" + e.getMessage());
 
-
             Toast.makeText(getActivity(),
                     "動画の再生に失敗しました。再生数を減らしてください",
                     Toast.LENGTH_SHORT).show();
@@ -462,7 +475,9 @@ public class VideoGridFragment extends Fragment
     /**
      * 画面サイズとビデオサイズからビューサイズを算出する
      *
-     * @return
+     * @param videoWidth ビデオの幅
+     * @param videoHeight ビデオの高さ
+     * @return 縦横比を維持して、画面に収まるサイズに拡大した際のサイズ [0]:幅 [1]:高さ
      */
     private int[] calcVideoSize(int videoWidth, int videoHeight) {
 
@@ -485,13 +500,9 @@ public class VideoGridFragment extends Fragment
         return size;
     }
 
-    static private class VideoData {
-
-        //static final int DEGREE_UNKNOWN = -1;
-
+    private static class VideoData {
         Uri videoUri;
         String name;
-        //int degree;
         Matrix textureMatrix;
         long thumbId;
 
@@ -500,17 +511,18 @@ public class VideoGridFragment extends Fragment
             this.videoUri = uri;
             this.thumbId = thumbId;
             textureMatrix = null;
-            //this.degree = DEGREE_UNKNOWN;
-            //this.mp = new MediaPlayer();
         }
     }
 
-    private class MakeVideoListTask extends AsyncTask<Integer, Integer, Integer> {
+    /**
+     * 動画リストの準備を行うsyncTask<br>
+     * 動画のサムネイルを作成し、GridAdapterをListViewにセットする
+     */
+    private class PrepareVideoListTask extends AsyncTask<Integer, Integer, Integer> {
 
         ProgressDialog progress;
 
-        MakeVideoListTask() {
-
+        PrepareVideoListTask() {
             progress = new ProgressDialog(getActivity());
             progress.setCancelable(false);
         }
@@ -568,47 +580,31 @@ public class VideoGridFragment extends Fragment
         @Override
         protected void onProgressUpdate(Integer... values) {
 
-            String message = String.format(
+            String message = String.format(Locale.getDefault(),
                     "Making video thumbnails %d / %d", values[0], mVideoUriList.size());
 
             progress.setMessage(message);
         }
 
-//        @Override
-//        public void onCancel(DialogInterface dialog) {
-//
-//            this.cancel( true );
-//            Toast.makeText( getActivity(),
-//                    "Stop the making thumbnails task.", Toast.LENGTH_LONG ).show();
-//
-//            updateGrid();
-//        }
-
         private void updateGrid() {
-
             Context context = getActivity().getApplicationContext();
             GridAdapter adapter = new GridAdapter(context, mColCount);
             mVideoList.setAdapter(adapter);
-
         }
     }
 
-    private class ThumbnailCache extends BitmapLruCache<VideoData> {
-
+    private static class ThumbnailCache extends BitmapLruCache<VideoData> {
         private static final int CACHE_SIZE = 64 * 1024 * 1024;
         private Context context;
 
-        public ThumbnailCache(Context context) {
+        ThumbnailCache(Context context) {
             super(CACHE_SIZE);
-
             this.context = context;
         }
 
         @Override
         protected Bitmap createBitmap(VideoData data) {
-
             ContentResolver resolver = context.getContentResolver();
-
             //MediaStoreから取得
             Bitmap thumbnail = MediaStore.Video.Thumbnails.getThumbnail(resolver, data.thumbId,
                     MediaStore.Images.Thumbnails.MINI_KIND, null);
@@ -624,49 +620,46 @@ public class VideoGridFragment extends Fragment
     }
 
     private static class DecoderSurface implements SurfaceTextureListener {
-
+        /** デコード処理のタイムアウト時間(マイクロ秒) */
         private static final int BUFFER_TIMEOUT_USEC = 100000;
+        /** 動画をループ再生するか */
         private static final boolean DO_LOOP_VIDEO = false;
 
-        //TODO とりあえず。
+        /** サムネイル画像表示用 */
         private ImageView imageView;
+        /** 動画再生用 */
         private TextureView textureView;
-
         private DecodeThread decodeThread = null;
-        //        private String filePath;
-//        private
         private VideoData videoData;
 
         /**
-         * インスタンス識別用
+         * DecoderSurfaceを一意に区別するID
          */
-        private int id;
+        private int surfaceNumber;
 
         /**
          * @param surfaceNumber 識別用番号
-         * @param handler
-         * @param imageView
+         * @param imageView ImageView
          */
         DecoderSurface(int surfaceNumber, ImageView imageView, TextureView textureView) {
             this.imageView = imageView;
             this.textureView = textureView;
-            this.id = surfaceNumber;
+            this.surfaceNumber = surfaceNumber;
         }
 
-        public void setVideoData(VideoData videoData) {
+        void setVideoData(VideoData videoData) {
             this.videoData = videoData;
             play(false);
         }
 
         /**
+         * 動画を再生する
          * @param interrupt true:割り込んで再生する false:再生キューに追加する
          */
         private void play(boolean interrupt) {
-
-            Log.d(TAG, "play :" + id);
+            Log.d(TAG, "play :" + surfaceNumber);
 
             if (decodeThread != null && decodeThread.isAlive()) {
-                //decodeThread.setMediaFilePath( videoData.videoUri.getPath() );
                 decodeThread.setVideoData(videoData);
             }
 
@@ -675,9 +668,7 @@ public class VideoGridFragment extends Fragment
             }
         }
 
-        public void release() {
-
-            //filePath = null;
+        void release() {
             videoData = null;
 
             if (decodeThread != null && decodeThread.isAlive()) {
@@ -687,11 +678,9 @@ public class VideoGridFragment extends Fragment
             decodeThread = null;
         }
 
-
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface,
                                               int width, int height) {
-
             decodeThread = new DecodeThread(id, new DecodeHandler(),
                     new Surface(surface), stQueueManager, width);
             decodeThread.start();
@@ -701,6 +690,7 @@ public class VideoGridFragment extends Fragment
         @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture surface,
                                                 int width, int height) {
+            //Do nothing
         }
 
         @Override
@@ -711,43 +701,32 @@ public class VideoGridFragment extends Fragment
 
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
+            //Do nothing
         }
 
         private class DecodeHandler extends Handler {
-
             /**
              * デコード準備完了
              */
             static final int MSG_DECODE_READY = 1;
-
             /**
              * デコード開始
              */
             static final int MSG_DECODE_START = 2;
-
+            /**
+             * デコード失敗
+             */
             static final int MSG_FAILED_TO_DECODE = 3;
-
-//            /**
-//             * デコード停止
-//             */
-//            static final int MSG_DECODE_STOP = 3;
-
 
             @Override
             public void handleMessage(Message msg) {
 
                 switch (msg.what) {
-
                     case MSG_DECODE_READY:
-
                         Matrix mtx = (Matrix) msg.obj;
                         textureView.setTransform(mtx);
-
                         break;
                     case MSG_DECODE_START:
-                        //imageView.setVisibility( View.GONE );
-
                         Log.d(TAG, "MSG_DECODE_START alpha:" + imageView.getAlpha());
 
                         if (imageView.getAlpha() == 1.0f) {
@@ -755,11 +734,8 @@ public class VideoGridFragment extends Fragment
                                     AnimationUtils.loadAnimation(imageView.getContext(),
                                             R.animator.fadeout_anim));
                         }
-
                         break;
-
                     case MSG_FAILED_TO_DECODE:
-
                         String text = (String) msg.obj;
                         Toast.makeText(imageView.getContext(),
                                 text, Toast.LENGTH_SHORT).show();
@@ -768,10 +744,14 @@ public class VideoGridFragment extends Fragment
             }
         }
 
-
+        /**
+         * デコードキューの管理クラス<br>
+         * デコードスレッドのキューに持ち、同時再生数だけ順次取り出して実行する<br>
+         *
+         */
         private static class DecodeQueueManager {
-
             LinkedList<DecodeThread> waitQueue;
+            /** 同時再生数 */
             int maxRunCount;
 
             DecodeQueueManager() {
@@ -781,10 +761,9 @@ public class VideoGridFragment extends Fragment
 
             @Override
             synchronized public String toString() {
-
                 StringBuffer bf = new StringBuffer();
                 for (int i = 0; i < waitQueue.size(); i++) {
-                    bf.append(String.valueOf(waitQueue.get(i).id) + ",");
+                    bf.append(String.valueOf(waitQueue.get(i).surfaceNumber) + ",");
                 }
 
                 return bf.toString();
@@ -793,25 +772,24 @@ public class VideoGridFragment extends Fragment
             /**
              * @param maxRunCount 同時再生数
              */
-            public void setMaxRunCount(int maxRunCount) {
+            void setMaxRunCount(int maxRunCount) {
                 if (maxRunCount < 1) {
-                    new java.lang.IllegalArgumentException(
+                    throw new java.lang.IllegalArgumentException(
                             "The max count must be over 1. :" + maxRunCount);
                 }
                 this.maxRunCount = maxRunCount;
             }
 
-            synchronized public void clear() {
+            synchronized void clear() {
                 waitQueue.clear();
             }
 
             /**
              * 再生待ちキューの末尾に追加
              *
-             * @param inDs
-             * @return
+             * @param inDs DecodeThread
              */
-            synchronized public void offerDecoder(DecodeThread inDs) {
+            synchronized void offerDecoder(DecodeThread inDs) {
                 if (!waitQueue.contains(inDs)) {
                     waitQueue.offer(inDs);
                 }
@@ -820,9 +798,9 @@ public class VideoGridFragment extends Fragment
             /**
              * 再生待ちキューから削除
              *
-             * @param inDs
+             * @param inDs DecodeThread
              */
-            synchronized public void removeDecoder(DecodeThread inDs) {
+            synchronized void removeDecoder(DecodeThread inDs) {
                 waitQueue.remove(inDs);
 
                 synchronized (waitQueue) {
@@ -831,14 +809,13 @@ public class VideoGridFragment extends Fragment
             }
 
             /**
-             * 割り込んで再生する
+             * 割り込んで再生する<br>
+             * 動画再生数が最大数であれば、最初に再生された動画を停止して新たに動画を再生する
              *
-             * @param inDs
+             * @param inDs DecodeThread
              */
-            synchronized public void interrupt(DecodeThread inDs) {
-
-                Log.d(TAG, "BEFORE interrupt id:" + inDs.id
-                        + " list:" + toString());
+            synchronized void interrupt(DecodeThread inDs) {
+                Log.d(TAG, "BEFORE interrupt id:" + inDs.surfaceNumber + " list:" + toString());
 
                 waitQueue.remove(inDs);
 
@@ -854,27 +831,27 @@ public class VideoGridFragment extends Fragment
                     headDs.decodeDone = true;
                 }
 
-                Log.d(TAG, "AFTER interrupt id:" + inDs.id
-                        + " list:" + toString());
+                Log.d(TAG, "AFTER interrupt id:" + inDs.surfaceNumber + " list:" + toString());
             }
 
-            public void notifyStop() {
-
+            /**
+             * いずれかの動画の再生が停止したら呼び出す<br>
+             * notifyAll()を呼び出し、再生待ちスレッドが実行されるようにする
+             */
+            void notifyStop() {
                 synchronized (waitQueue) {
                     waitQueue.notifyAll();
                 }
             }
 
             /**
-             * 再生できるようになるまで待つ
+             * 再生できるようになるまで待つ<br>
              *
-             * @param ds
-             * @return
+             * @param ds DecodeThread
+             * @return true:順番が来たので再生可能 false:順番待ち
              */
-            public boolean waitForTurn(DecodeThread ds) {
-
+            boolean waitForTurn(DecodeThread ds) {
                 while (true) {
-
                     int index = waitQueue.indexOf(ds);
 
                     if (index < 0) {
@@ -887,29 +864,27 @@ public class VideoGridFragment extends Fragment
                         try {
                             waitQueue.wait();
                         } catch (InterruptedException e) {
+                            // nop
                         }
                     }
                 }
             }
         }
 
-        static private class DecodeThread extends Thread {
-
+        private static class DecodeThread extends Thread {
             /**
              * ファイルからのビデオ読み込みが完了したか否か
              */
             private boolean inputDone = false;
             /**
-             * デコードが完了したか否か
+             * 末尾までデコードが完了した
              */
             private boolean decodeDone = false;
-
             /**
              * スレッドが停止されたか否か
              */
             private boolean isStopped = false;
 
-            //private String filePath;
             private VideoData videoData;
 
             private MediaExtractor extractor;
@@ -918,32 +893,33 @@ public class VideoGridFragment extends Fragment
             private Surface outSurface;
             private DecodeHandler handler;
             private DecodeQueueManager queueManager;
+            /** 動画の再生サイズ(縦横) */
             private int outSize;
-
-            private int id;
+            /** DecoderSurfaceの番号 */
+            private int surfaceNumber;
 
             private long startMs;
 
+            /**
+             *
+             * @param surfaceNumber DecoderSurfaceの番号
+             * @param handler DecodeHandler
+             * @param outSurface 動画出力先Surface
+             * @param queueManager DecodeQueueManager
+             * @param outSize 動画の再生サイズ(縦横)
+             */
             DecodeThread(int surfaceNumber, DecodeHandler handler, Surface outSurface,
                          DecodeQueueManager queueManager, int outSize) {
                 this.setName("Thread_SF_" + surfaceNumber);
 
-                this.id = surfaceNumber;
+                this.surfaceNumber = surfaceNumber;
                 this.outSurface = outSurface;
                 this.handler = handler;
                 this.queueManager = queueManager;
                 this.outSize = outSize;
             }
 
-//            public void setMediaFilePath( String filePath ){
-//
-//                this.filePath = filePath;
-//                this.inputDone = true;
-//                this.decodeDone = true;
-//            }
-
-            public void setVideoData(VideoData videoData) {
-
+            void setVideoData(VideoData videoData) {
                 this.videoData = videoData;
                 this.inputDone = true;
                 this.decodeDone = true;
@@ -953,13 +929,10 @@ public class VideoGridFragment extends Fragment
              * 現在のfilePathを使ってExtractorを作成する
              */
             private boolean readyExtractor(String filePath) {
-
                 boolean isOk = false;
-
                 bufferInfo = new BufferInfo();
 
                 try {
-
                     extractor = new MediaExtractor();
                     extractor.setDataSource(filePath);
                     isOk = true;
@@ -978,9 +951,7 @@ public class VideoGridFragment extends Fragment
              * DO_LOOP_VIDEOがtrueの場合、ループ再生する
              */
             private void playVideo() {
-
                 do {
-
                     extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                     inputDone = false;
                     decodeDone = false;
@@ -990,16 +961,14 @@ public class VideoGridFragment extends Fragment
                     boolean isFirst = true;
 
                     while (!decodeDone && !isStopped) {
-
                         try {
                             decodeVideoFrame();
                         } catch (Exception e) {
-                            //e.printStackTrace();
                             handler.sendMessage(
                                     handler.obtainMessage(DecodeHandler.MSG_FAILED_TO_DECODE,
                                             "再生に失敗しました。再生数を減らしてください"));
 
-                            Log.d(TAG, "Failed to playVideo id:" + id + " msg:" + e.getMessage());
+                            Log.d(TAG, "Failed to playVideo id:" + surfaceNumber + " msg:" + e.getMessage());
                             break;
                         }
 
@@ -1037,8 +1006,7 @@ public class VideoGridFragment extends Fragment
             }
 
             private void stopDecode() {
-
-                Log.d(TAG, "stopDecode id:" + id);
+                Log.d(TAG, "stopDecode id:" + surfaceNumber);
 
                 isStopped = true;
                 videoData = null;
@@ -1047,18 +1015,15 @@ public class VideoGridFragment extends Fragment
 
             @Override
             public void run() {
-
                 isStopped = false;
 
                 while (!isStopped) {
-
                     queueManager.offerDecoder(this);
 
                     if (queueManager.waitForTurn(this)) {
-
                         VideoData data = videoData;
-                        if (data != null) {
 
+                        if (data != null) {
                             String filePath = data.videoUri.getPath();
 
                             if (readyExtractor(filePath)) {
@@ -1067,11 +1032,10 @@ public class VideoGridFragment extends Fragment
                                 if (format != null) {
                                     if (data.textureMatrix == null) {
                                         data.textureMatrix =
-                                                getTextureMatrix(filePath, format, outSize);
+                                                makeTextureMatrix(filePath, format, outSize);
                                     }
 
                                     if (data == videoData) { //dataが変更されていたら再生しない
-
                                         handler.sendMessage(handler.obtainMessage(
                                                 DecodeHandler.MSG_DECODE_READY,
                                                 data.textureMatrix));
@@ -1091,40 +1055,31 @@ public class VideoGridFragment extends Fragment
 
             /**
              * ファイルからビデオを読み込み、デコードする
-             *
-             * @return
              */
-            private int decodeVideoFrame() {
-
+            private void decodeVideoFrame() {
+                // 読み込みが完了していなかったら、ビデオファイルを読み込み、デコーダにデータを挿入する
                 if (!inputDone) {
                     extractVideoFile();
+                    // TODO: returnする？
                 }
 
                 if (!decodeDone) {
                     decodeVideoBuffer();
                 }
-
-                return 0;
             }
-
 
             /**
              * ビデオファイルを読み込み、デコーダにデータを挿入する
              */
             private void extractVideoFile() {
-
                 int decodeBufIndex = decoder.dequeueInputBuffer(BUFFER_TIMEOUT_USEC);
 
                 if (decodeBufIndex >= 0) {
-
                     ByteBuffer buffer = getInputBuffer(decoder, decodeBufIndex);
 
                     int readLength = extractor.readSampleData(buffer, 0);
                     long sampleTime = extractor.getSampleTime();
                     int flags = extractor.getSampleFlags();
-                    //
-//                    Log.d(TAG, "extract data. size:" + readLength + " ts:"
-//                            + sampleTime + " f:" + flags);
 
                     if (readLength < 0) {
                         // 読み込み完了
@@ -1135,20 +1090,15 @@ public class VideoGridFragment extends Fragment
                                 sampleTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
 
                     } else {
-
                         buffer.limit(readLength);
                         decoder.queueInputBuffer(decodeBufIndex, 0, readLength,
                                 sampleTime, flags);
-//                        Log.d(TAG, "decoder queueInputBuffer " + " frameIndex:"
-//                                + mVideoProgressData.frameIndex + " sampleTs:"
-//                                + sampleTime);
                         extractor.advance();
                     }
                 }
             }
 
             private ByteBuffer getInputBuffer(MediaCodec codec, int bufferIndex) {
-
                 ByteBuffer buffer;
 
                 if (Build.VERSION.SDK_INT < 21) {
@@ -1161,13 +1111,8 @@ public class VideoGridFragment extends Fragment
                 return buffer;
             }
 
-
             /**
              * デコーダを準備する
-             *
-             * @param surface
-             * @param decodeFormat
-             * @param デコーダ初期化時のMediaFormat. 失敗時、Null
              */
             private MediaFormat readyVideoDecoder() {
 
@@ -1208,13 +1153,10 @@ public class VideoGridFragment extends Fragment
 
 
             private MediaFormat selectTrack(MediaExtractor extractor) {
-
                 int trackCount = extractor.getTrackCount();
-
                 Log.d(TAG, "trackCount :" + trackCount);
 
-                MediaFormat format = null;
-
+                MediaFormat format;
                 for (int i = 0; i < trackCount; i++) {
                     extractor.selectTrack(i);
                     format = extractor.getTrackFormat(i);
@@ -1229,30 +1171,33 @@ public class VideoGridFragment extends Fragment
                 return null;
             }
 
-            private Matrix getTextureMatrix(String filePath, MediaFormat decodeFormat,
-                                            int textureSize) {
+            /**
+             * 動画を出力サイズに変換するためのMatrixを生成する
+             *
+             * @param filePath 動画ファイルパス
+             * @param decodeFormat MediaFormat
+             * @param textureSize 動画の出力サイズ
+             * @return 動画を出力サイズに変換するためのMatrix
+             */
+            private Matrix makeTextureMatrix(String filePath, MediaFormat decodeFormat,
+                                             int textureSize) {
+                long startTime = System.currentTimeMillis(); // 計測ログ用
 
                 Matrix mtx = new Matrix();
-
-                long startTime = System.currentTimeMillis();
-
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 retriever.setDataSource(filePath);
 
+                // 動画の向きを取得
                 String rotationVal = retriever.extractMetadata( //SDK 17から
                         MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
 
                 int orientation = 0;
-
                 if (rotationVal != null && TextUtils.isDigitsOnly(rotationVal)) {
                     orientation = Integer.valueOf(rotationVal);
                 }
 
+                // rotation-degreesがセットされている場合、デコーダが映像の回転を行うのでMatrixでは回転しない
                 boolean isRotateWithDecoder = false;
-                /**
-                 * rotation-degreesがセットされている場合、
-                 * デコーダが映像の回転を行うのでMatrixでは回転しない
-                 */
                 if (decodeFormat.containsKey("rotation-degrees")) {
 
                     int rotateDegree = decodeFormat.getInteger("rotation-degrees");
@@ -1263,88 +1208,62 @@ public class VideoGridFragment extends Fragment
                     }
                 }
 
-                int rotate = (isRotateWithDecoder ? 0 : orientation);
-
-                float pivot = (float) textureSize / 2;
+                int rotate = (isRotateWithDecoder ? 0 : orientation); // 回転角
+                float pivot = (float) textureSize / 2; // 回転する際の中心座標
                 mtx.setRotate(rotate, pivot, pivot);
 
-                int width = 0;
-                int height = 0;
-
+                int width = 0; // 動画のオリジナル幅
+                int height = 0; // 動画のオリジナル高
                 if (decodeFormat.containsKey(MediaFormat.KEY_WIDTH)) {
                     width = decodeFormat.getInteger(MediaFormat.KEY_WIDTH);
                 }
-
                 if (decodeFormat.containsKey(MediaFormat.KEY_HEIGHT)) {
                     height = decodeFormat.getInteger(MediaFormat.KEY_HEIGHT);
                 }
 
-//                if( orientation == 90 || orientation == 180 ){
-//                    int temp = width;
-//                    height = temp;
-//                    width = temp;
-//                }
-//
-//
-//
                 if (width > 0 && height > 0) {
-
                     if (orientation == 90 || orientation == 270) {
                         if (width > height) {
-
                             float scale = (float) width / height;
                             mtx.postScale(1.0f, scale, pivot, pivot);
                         } else {
-
                             float scale = (float) height / width;
                             mtx.postScale(scale, 1.0f, pivot, pivot);
                         }
-
                     } else {
-
                         if (width > height) {
-
                             float scale = (float) width / height;
                             mtx.postScale(scale, 1.0f, pivot, pivot);
                         } else {
-
                             float scale = (float) height / width;
                             mtx.postScale(1.0f, scale, pivot, pivot);
                         }
                     }
                 }
 
-                Log.d(TAG, "getTextureMatrix cost:" + (System.currentTimeMillis() - startTime));
+                Log.d(TAG, "makeTextureMatrix cost:" + (System.currentTimeMillis() - startTime));
 
                 return mtx;
             }
 
             /**
-             * デコードしたビデオを表示する
+             * 動画をデコード(再生)する
              */
             private void decodeVideoBuffer() {
-
+                // MediaCodecからデコード結果を受け取る
                 int decodeStatus = decoder.dequeueOutputBuffer(bufferInfo, BUFFER_TIMEOUT_USEC);
 
                 if (checkDecoderStatus(decodeStatus)) {
-
                     if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG)
                             != 0) {
+                        // コンフィグ部分を読み込んだ( 未だデコードは行っていない )
                         Log.d(TAG, "decoder configured (" + bufferInfo.size + " bytes)");
                     } else if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             != 0) {
-
+                        // 末尾までデコードされた
                         Log.d(TAG, "Decoder gets BUFFER_FLAG_END_OF_STREAM. ");
                         decodeDone = true;
-
                     } else if (bufferInfo.presentationTimeUs > 0) {
-
-//                        Log.d(TAG, "decode data. size:" + bufferInfo.size
-//                                + " offset:" + bufferInfo.offset + " ts:"
-//                                + bufferInfo.presentationTimeUs + " frags:"
-//                                + bufferInfo.flags );
-
-
                         //( 動画のタイムスタンプ > 実際の経過時間 )になるまで待つ
                         while (bufferInfo.presentationTimeUs / 1000 >
                                 System.currentTimeMillis() - startMs) {
@@ -1355,19 +1274,22 @@ public class VideoGridFragment extends Fragment
                             }
                         }
 
+                        // デコードされたバッファをサーフィスに送信(動画の再生)
                         decoder.releaseOutputBuffer(decodeStatus, true);
                     }
                 }
             }
 
             /**
-             * @param decoderStatus
+             * MediaCodec#dequeueOutputBuffer()の戻り値のチェック
+             *
+             * @param decoderStatus MediaCodec#dequeueOutputBuffer()の戻り値
              * @return true: デコード処理が行われた
              */
             private boolean checkDecoderStatus(int decoderStatus) {
-
                 if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                    //Log.d(TAG, "no output from decoder available");
+                    // dequeueOutputBufferの呼び出しがタイムアウト
+                    // TODO inputDoneしてからequeueOutputBufferを呼び出す？
                     if (inputDone) {
                         Log.d(TAG, "no output from decoder available BUT the input is done.");
                     }
@@ -1384,7 +1306,6 @@ public class VideoGridFragment extends Fragment
 
                 return false;
             }
-
         }
     }
 
@@ -1394,7 +1315,6 @@ public class VideoGridFragment extends Fragment
      */
     @Override
     public void onPrepared(MediaPlayer mp) {
-
         int height = mp.getVideoHeight();
         int width = mp.getVideoWidth();
 
@@ -1418,7 +1338,6 @@ public class VideoGridFragment extends Fragment
                                 getActivity().getApplicationContext(), R.animator.fadein_anim));
             }
         }, 200);
-
     }
 
     /**
@@ -1426,7 +1345,6 @@ public class VideoGridFragment extends Fragment
      */
     @Override
     public void onCompletion(MediaPlayer mp) {
-
         try {
             mp.seekTo(0);
             mp.start();
@@ -1438,7 +1356,6 @@ public class VideoGridFragment extends Fragment
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         Log.d(TAG, "onSurfaceTextureAvailable w:" + width + " h:" + height);
-
         mPlayer.setSurface(new Surface(surface));
     }
 
@@ -1450,17 +1367,16 @@ public class VideoGridFragment extends Fragment
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         Log.d(TAG, "onSurfaceTextureDestroyed");
-
         return true;
     }
 
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        // nop
     }
 
     @Override
     public boolean onBackPressed() {
-
         boolean doContinue = true;
 
         try {
@@ -1470,7 +1386,6 @@ public class VideoGridFragment extends Fragment
             }
 
             hidePickedVideo();
-
         } catch (java.lang.IllegalStateException e) {
             e.printStackTrace();
         }

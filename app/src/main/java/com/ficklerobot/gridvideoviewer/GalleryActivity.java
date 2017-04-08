@@ -14,15 +14,18 @@ import android.os.Build;
 import android.os.Bundle;
 
 public class GalleryActivity extends Activity {
-
+    /** 列数 */
     public static final String EXT_COL_COUNT = "colCount";
+    /** 同時再生数 */
     public static final String EXT_PLAY_COUNT = "playCount";
+    /** タップ時の動作 TAP_ACTION_FLOAT|TAP_ACTION_THUMBNAIL */
     public static final String EXT_TAP_ACTION = "tapAction";
 
     private static final String FRAGMENT_GRID = "gridFragment";
 
     public static final String TAG = "VideoGrid";
 
+    /** バックキー押下時の動作 */
     private OnBackPressListener mBackPressListener;
 
     public interface OnBackPressListener {
@@ -47,10 +50,8 @@ public class GalleryActivity extends Activity {
         changeFragment(FRAGMENT_GRID);
     }
 
-
     @Override
     public void onBackPressed() {
-
         boolean doBack = true;
 
         if (mBackPressListener != null) {
@@ -62,27 +63,19 @@ public class GalleryActivity extends Activity {
         }
     }
 
-
     public void changeFragment(String tag) {
-
         mBackPressListener = null;
         Fragment fragment = null;
-        boolean addBackStack = false;
 
         if (FRAGMENT_GRID.equals(tag)) {
             fragment = new VideoGridFragment();
             fragment.setArguments(getIntent().getExtras());
-            addBackStack = false;
             mBackPressListener = (VideoGridFragment) fragment;
         }
 
         if (fragment != null) {
-
             FragmentTransaction transaction = getFragmentManager().beginTransaction();
             transaction.replace(R.id.container, fragment, tag);
-            if (addBackStack) {
-                transaction.addToBackStack(null);
-            }
             transaction.commit();
         }
     }

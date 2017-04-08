@@ -3,7 +3,7 @@
  * Copyright 2015 FickleRobot LLC.
  *
  */
-
+ 
 package com.ficklerobot.gridvideoviewer;
 
 import android.graphics.Bitmap;
@@ -11,11 +11,10 @@ import android.util.LruCache;
 
 public abstract class BitmapLruCache<T> {
 
-    protected LruCache<T, Bitmap> cache;
+    protected LruCache<T, Bitmap> mCache;
 
     public BitmapLruCache(int cacheSize) {
-
-        cache = new LruCache<T, Bitmap>(cacheSize) {
+        mCache = new LruCache<T, Bitmap>(cacheSize) {
             @Override
             protected int sizeOf(T id, Bitmap value) {
                 return value.getByteCount();
@@ -33,16 +32,16 @@ public abstract class BitmapLruCache<T> {
     }
 
     public void stockBitmapToMemoryCache(T id, Bitmap bitmap) {
-        cache.put(id, bitmap);
+        mCache.put(id, bitmap);
     }
 
     public void removeBitmapFromCache(T id) {
-        cache.remove(id);
+        mCache.remove(id);
     }
 
     public Bitmap getBitmapFromMemCache(T id) {
 
-        Bitmap bmp = cache.get(id);
+        Bitmap bmp = mCache.get(id);
         if (bmp == null) {
 
             bmp = createBitmap(id);
@@ -55,7 +54,7 @@ public abstract class BitmapLruCache<T> {
     }
 
     public void clearCache() {
-        cache.evictAll();
+        mCache.evictAll();
     }
 
     protected abstract Bitmap createBitmap(T id);

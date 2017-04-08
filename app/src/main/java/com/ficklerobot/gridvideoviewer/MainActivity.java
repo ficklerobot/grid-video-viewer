@@ -23,7 +23,6 @@ public class MainActivity extends Activity {
     public static final int TAP_ACTION_FLOAT = 1;
     public static final int TAP_ACTION_THUMBNAIL = 2;
 
-
     private static final int[] TAP_ACTION_LIST =
             {TAP_ACTION_FLOAT, TAP_ACTION_THUMBNAIL};
 
