@@ -82,7 +82,7 @@ class DecoderSurface implements TextureView.SurfaceTextureListener {
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface,
                                           int width, int height) {
-        decodeThread = new DecodeThread(id, new DecodeHandler(),
+        decodeThread = new DecodeThread(id, new DecodeHandler(textureView, imageView),
                 new Surface(surface), mManager, width);
         decodeThread.start();
         play(false);
@@ -105,7 +105,7 @@ class DecoderSurface implements TextureView.SurfaceTextureListener {
         //Do nothing
     }
 
-    class DecodeHandler extends Handler {
+    static class DecodeHandler extends Handler {
         /**
          * デコード準備完了
          */
@@ -118,6 +118,14 @@ class DecoderSurface implements TextureView.SurfaceTextureListener {
          * デコード失敗
          */
         static final int MSG_FAILED_TO_DECODE = 3;
+
+        TextureView textureView;
+        ImageView imageView;
+
+        private DecodeHandler(TextureView textureView, ImageView imageView) {
+            this.textureView = textureView;
+            this.imageView = imageView;
+        }
 
         @Override
         public void handleMessage(Message msg) {
