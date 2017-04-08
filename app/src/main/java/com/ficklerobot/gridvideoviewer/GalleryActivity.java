@@ -23,12 +23,11 @@ public class GalleryActivity extends Activity {
 
     public static final String TAG = "VideoGrid";
 
-    private OnBackpressListener mBackpressListener;
+    private OnBackPressListener mBackPressListener;
 
-    public interface OnBackpressListener{
+    public interface OnBackPressListener {
 
         /**
-         *
          * @return true:ActivityでBackPressイベントを処理する false:処理しない
          */
         boolean onBackPressed();
@@ -37,15 +36,15 @@ public class GalleryActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_gallery );
+        setContentView(R.layout.activity_gallery);
 
-        int orientation = ( Build.VERSION.SDK_INT < 18
+        int orientation = (Build.VERSION.SDK_INT < 18
                 ? ActivityInfo.SCREEN_ORIENTATION_USER
-                : ActivityInfo.SCREEN_ORIENTATION_LOCKED );
+                : ActivityInfo.SCREEN_ORIENTATION_LOCKED);
 
-        setRequestedOrientation( orientation );
+        setRequestedOrientation(orientation);
 
-        changeFragment( FRAGMENT_GRID );
+        changeFragment(FRAGMENT_GRID);
     }
 
 
@@ -54,34 +53,34 @@ public class GalleryActivity extends Activity {
 
         boolean doBack = true;
 
-        if( mBackpressListener != null ){
-            doBack = mBackpressListener.onBackPressed();
+        if (mBackPressListener != null) {
+            doBack = mBackPressListener.onBackPressed();
         }
 
-        if( doBack ){
+        if (doBack) {
             super.onBackPressed();
         }
     }
 
 
-    public void changeFragment( String tag ){
+    public void changeFragment(String tag) {
 
-        mBackpressListener = null;
+        mBackPressListener = null;
         Fragment fragment = null;
         boolean addBackStack = false;
 
-        if( FRAGMENT_GRID.equals( tag )){
+        if (FRAGMENT_GRID.equals(tag)) {
             fragment = new VideoGridFragment();
-            fragment.setArguments( getIntent().getExtras() );
+            fragment.setArguments(getIntent().getExtras());
             addBackStack = false;
-            mBackpressListener = (VideoGridFragment)fragment;
+            mBackPressListener = (VideoGridFragment) fragment;
         }
 
-        if( fragment != null ){
+        if (fragment != null) {
 
             FragmentTransaction transaction = getFragmentManager().beginTransaction();
-            transaction.replace( R.id.container, fragment, tag );
-            if( addBackStack ){
+            transaction.replace(R.id.container, fragment, tag);
+            if (addBackStack) {
                 transaction.addToBackStack(null);
             }
             transaction.commit();
