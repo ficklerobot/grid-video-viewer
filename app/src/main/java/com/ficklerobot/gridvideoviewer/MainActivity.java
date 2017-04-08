@@ -50,20 +50,20 @@ public class MainActivity extends Activity {
 
         mColSpinner = (Spinner) findViewById(R.id.colCountSpinner);
         String[] cols = {"1", "2", "3", "4", "5"};
-        mColSpinner.setAdapter(new ArrayAdapter<String>(
+        mColSpinner.setAdapter(new ArrayAdapter<>(
                 this, android.R.layout.simple_list_item_1, cols));
         mColSpinner.setSelection(2);
 
         mPlaySpinner = (Spinner) findViewById(R.id.playCountSpinner);
         String[] playCounts = {"1", "2", "3", "4", "5", "6", "7", "8", "9",};
 
-        mPlaySpinner.setAdapter(new ArrayAdapter<String>(
+        mPlaySpinner.setAdapter(new ArrayAdapter<>(
                 this, android.R.layout.simple_list_item_1, playCounts));
         mPlaySpinner.setSelection(1);
 
         mActionSpinner = (Spinner) findViewById(R.id.tapActionSpinner);
         String[] actions = {"拡大して再生", "サムネイル再生"};
-        mActionSpinner.setAdapter(new ArrayAdapter<String>(
+        mActionSpinner.setAdapter(new ArrayAdapter<>(
                 this, android.R.layout.simple_list_item_1, actions));
         mActionSpinner.setSelection(0);
     }

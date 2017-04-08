@@ -22,9 +22,6 @@ public class GalleryActivity extends Activity {
     public static final String EXT_TAP_ACTION = "tapAction";
 
     private static final String FRAGMENT_GRID = "gridFragment";
-
-    public static final String TAG = "VideoGrid";
-
     /** バックキー押下時の動作 */
     private OnBackPressListener mBackPressListener;
 
@@ -41,12 +38,14 @@ public class GalleryActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_gallery);
 
-        int orientation = (Build.VERSION.SDK_INT < 18
-                ? ActivityInfo.SCREEN_ORIENTATION_USER
-                : ActivityInfo.SCREEN_ORIENTATION_LOCKED);
+        int orientation;
+        if (Build.VERSION.SDK_INT < 18) {
+            orientation = ActivityInfo.SCREEN_ORIENTATION_USER;
+        } else {
+            orientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED;
+        }
 
         setRequestedOrientation(orientation);
-
         changeFragment(FRAGMENT_GRID);
     }
 
