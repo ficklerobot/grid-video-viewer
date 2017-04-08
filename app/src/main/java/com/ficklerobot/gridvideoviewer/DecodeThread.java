@@ -16,9 +16,8 @@ import java.nio.ByteBuffer;
 import static android.R.attr.id;
 
 /**
- * Created by FickleRobot on 2017/04/08.
+ * デコード処理を行うスレッド
  */
-
 class DecodeThread extends Thread {
     private static final String TAG = "VideoGrid";
     /** デコード処理のタイムアウト時間(マイクロ秒) */

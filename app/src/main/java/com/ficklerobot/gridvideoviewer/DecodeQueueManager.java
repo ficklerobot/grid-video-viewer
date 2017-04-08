@@ -7,20 +7,18 @@ import java.util.LinkedList;
 /**
  * デコードキューの管理クラス<br>
  * デコードスレッドのキューに持ち、同時再生数だけ順次取り出して実行する<br>
- *
  */
 class DecodeQueueManager {
     private static final String TAG = "VideoGrid";
-    private static int MAX_RUN_COUNT = 3;
-    private LinkedList<DecodeThread> waitQueue;
+    private static final int DEFAULT_MAX_RUN_COUNT = 3;
+    private final LinkedList<DecodeThread> waitQueue = new LinkedList<>();
     /** 同時再生数 */
     private int maxRunCount;
 
     private static DecodeQueueManager sMe;
 
     private DecodeQueueManager() {
-        this.maxRunCount = MAX_RUN_COUNT;
-        waitQueue = new LinkedList<>();
+        this.maxRunCount = DEFAULT_MAX_RUN_COUNT;
     }
 
     static DecodeQueueManager getInstance() {
@@ -32,9 +30,9 @@ class DecodeQueueManager {
 
     @Override
     synchronized public String toString() {
-        StringBuffer bf = new StringBuffer();
-        for (int i = 0; i < waitQueue.size(); i++) {
-            bf.append(String.valueOf(waitQueue.get(i).getSurfaceNumber()) + ",");
+        StringBuilder bf = new StringBuilder();
+        for(DecodeThread dec : waitQueue){
+            bf.append(String.valueOf(dec.getSurfaceNumber())).append(",");
         }
 
         return bf.toString();

@@ -1,9 +1,3 @@
-/*
- *
- * Copyright 2015 FickleRobot LLC.
- *
- */
-
 package com.ficklerobot.gridvideoviewer;
 
 import android.app.Activity;

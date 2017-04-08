@@ -1,8 +1,3 @@
-/*
- *
- * Copyright 2017 FickleRobot LLC.
- *
- */
 package com.ficklerobot.gridvideoviewer;
 
 import android.graphics.Matrix;
@@ -20,9 +15,8 @@ import android.widget.Toast;
 import static android.R.attr.id;
 
 /**
- * Created by FickleRobot on 2017/04/08.
+ * 動画データ、動画のデコード処理、動画表示Viewをまとめたクラス
  */
-
 class DecoderSurface implements TextureView.SurfaceTextureListener {
     private static final String TAG = "VideoGrid";
 

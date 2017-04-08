@@ -1,9 +1,3 @@
-/*
- *
- * Copyright 2015 FickleRobot LLC.
- *
- */
-
 package com.ficklerobot.gridvideoviewer;
 
 import android.annotation.SuppressLint;
@@ -524,7 +518,7 @@ public class VideoGridFragment extends Fragment
 
                 DecoderSurface.VideoData data = null;
 
-                synchronized (mVideoUriList) {
+                synchronized (this) {
                     if (i < mVideoUriList.size()) {
                         data = mVideoUriList.get(i);
                     }
