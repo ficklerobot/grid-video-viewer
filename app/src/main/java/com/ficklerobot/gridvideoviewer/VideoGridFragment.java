@@ -30,6 +30,7 @@ import android.provider.MediaStore.Images;
 import android.provider.MediaStore.Video;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
@@ -50,7 +51,6 @@ import android.widget.Toast;
 import com.ficklerobot.gridvideoviewer.GalleryActivity.OnBackPressListener;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
 
 public class VideoGridFragment extends Fragment
@@ -69,7 +69,7 @@ public class VideoGridFragment extends Fragment
     private MediaPlayer mPlayer;
 
     private ArrayList<DecoderSurface.VideoData> mVideoUriList;
-    private HashMap<Integer, DecoderSurface> mSurfaceSet;
+    private SparseArray<DecoderSurface> mSurfaceArray;
     /** DecoderSurfaceの番号 */
     private int mSurfaceNumber;
     private ThumbnailCache mThumbnailCache;
@@ -111,7 +111,7 @@ public class VideoGridFragment extends Fragment
 
         mVideoUriList = new ArrayList<>();
         mThumbnailCache = new ThumbnailCache(context);
-        mSurfaceSet = new HashMap<>();
+        mSurfaceArray = new SparseArray<>();
 
         mQueueManager.setMaxRunCount(playCount);
 
@@ -125,7 +125,7 @@ public class VideoGridFragment extends Fragment
         synchronized (this) {
             mVideoUriList.clear();
             mThumbnailCache.clearCache();
-            mSurfaceSet.clear();
+            mSurfaceArray.clear();
         }
 
         loadVideoUrlList();
@@ -161,8 +161,9 @@ public class VideoGridFragment extends Fragment
             mThumbnailCache.clearCache();
             mVideoUriList.clear();
 
-            for (DecoderSurface ds : mSurfaceSet.values()) {
-                ds.release();
+            for(int i = 0; i < mSurfaceArray.size(); i++) {
+                int key = mSurfaceArray.keyAt(i);
+                mSurfaceArray.get(key).release();
             }
 
             if (mPlayer != null) {
@@ -188,7 +189,7 @@ public class VideoGridFragment extends Fragment
                 mPickedVideoView = null;
             }
 
-            mSurfaceSet.clear();
+            mSurfaceArray.clear();
         }
 
         mQueueManager.clear();
@@ -317,7 +318,7 @@ public class VideoGridFragment extends Fragment
 
                     int surfaceNum = position * colCount + i;
                     synchronized (VideoGridFragment.this) {
-                        mSurfaceSet.put(surfaceNum, ds);
+                        mSurfaceArray.put(surfaceNum, ds);
                     }
 
                     //TODO DecoderSurface, textureViews, imageViewsを内包したViewを作成する
