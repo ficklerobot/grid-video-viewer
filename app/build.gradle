@@ -1,0 +1,23 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 21
+    buildToolsVersion "24.0.0"
+
+    defaultConfig {
+        applicationId "com.ficklerobot.gridvideoviewer"
+        minSdkVersion 17
+        targetSdkVersion 21
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-project.txt'
+        }
+    }
+}
+
+dependencies {
+    compile 'com.android.support:support-v4:21.0.3'
+}
