@@ -11,14 +11,14 @@ import java.util.LinkedList;
 class DecodeQueueManager {
     private static final String TAG = "VideoGrid";
     private static final int DEFAULT_MAX_RUN_COUNT = 3;
-    private final LinkedList<DecodeThread> waitQueue = new LinkedList<>();
+    private final LinkedList<DecodeThread> mWaitQueue = new LinkedList<>();
     /** 同時再生数 */
-    private int maxRunCount;
+    private int mMaxRunCount;
 
     private static DecodeQueueManager sMe;
 
     private DecodeQueueManager() {
-        this.maxRunCount = DEFAULT_MAX_RUN_COUNT;
+        this.mMaxRunCount = DEFAULT_MAX_RUN_COUNT;
     }
 
     static DecodeQueueManager getInstance() {
@@ -31,7 +31,7 @@ class DecodeQueueManager {
     @Override
     synchronized public String toString() {
         StringBuilder bf = new StringBuilder();
-        for(DecodeThread dec : waitQueue){
+        for(DecodeThread dec : mWaitQueue){
             bf.append(String.valueOf(dec.getSurfaceNumber())).append(",");
         }
 
@@ -46,11 +46,11 @@ class DecodeQueueManager {
             throw new java.lang.IllegalArgumentException(
                     "The max count must be over 1. :" + maxRunCount);
         }
-        this.maxRunCount = maxRunCount;
+        this.mMaxRunCount = maxRunCount;
     }
 
     synchronized void clear() {
-        waitQueue.clear();
+        mWaitQueue.clear();
     }
 
     /**
@@ -59,8 +59,8 @@ class DecodeQueueManager {
      * @param inDs DecodeThread
      */
     synchronized void offerDecoder(DecodeThread inDs) {
-        if (!waitQueue.contains(inDs)) {
-            waitQueue.offer(inDs);
+        if (!mWaitQueue.contains(inDs)) {
+            mWaitQueue.offer(inDs);
         }
     }
 
@@ -70,10 +70,10 @@ class DecodeQueueManager {
      * @param inDs DecodeThread
      */
     synchronized void removeDecoder(DecodeThread inDs) {
-        waitQueue.remove(inDs);
+        mWaitQueue.remove(inDs);
 
-        synchronized (waitQueue) {
-            waitQueue.notifyAll();
+        synchronized (mWaitQueue) {
+            mWaitQueue.notifyAll();
         }
     }
 
@@ -86,16 +86,16 @@ class DecodeQueueManager {
     synchronized void interrupt(DecodeThread inDs) {
         Log.d(TAG, "BEFORE interrupt id:" + inDs.getSurfaceNumber() + " list:" + toString());
 
-        waitQueue.remove(inDs);
+        mWaitQueue.remove(inDs);
 
-        int insertIndex = maxRunCount;
-        if (insertIndex >= waitQueue.size()) {
-            insertIndex = waitQueue.size();
+        int insertIndex = mMaxRunCount;
+        if (insertIndex >= mWaitQueue.size()) {
+            insertIndex = mWaitQueue.size();
         }
 
-        waitQueue.add(insertIndex, inDs);
+        mWaitQueue.add(insertIndex, inDs);
 
-        DecodeThread headDs = waitQueue.poll();
+        DecodeThread headDs = mWaitQueue.poll();
         if (headDs != null) {
             headDs.setDecodeDone(true);
         }
@@ -108,8 +108,8 @@ class DecodeQueueManager {
      * notifyAll()を呼び出し、再生待ちスレッドが実行されるようにする
      */
     void notifyStop() {
-        synchronized (waitQueue) {
-            waitQueue.notifyAll();
+        synchronized (mWaitQueue) {
+            mWaitQueue.notifyAll();
         }
     }
 
@@ -121,17 +121,17 @@ class DecodeQueueManager {
      */
     boolean waitForTurn(DecodeThread ds) {
         while (true) {
-            int index = waitQueue.indexOf(ds);
+            int index = mWaitQueue.indexOf(ds);
 
             if (index < 0) {
                 return false;
-            } else if (index < maxRunCount) {
+            } else if (index < mMaxRunCount) {
                 return true;
             }
 
-            synchronized (waitQueue) {
+            synchronized (mWaitQueue) {
                 try {
-                    waitQueue.wait();
+                    mWaitQueue.wait();
                 } catch (InterruptedException e) {
                     // nop
                 }

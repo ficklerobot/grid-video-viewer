@@ -21,36 +21,36 @@ class DecoderSurface implements TextureView.SurfaceTextureListener {
     private static final String TAG = "VideoGrid";
 
     /** サムネイル画像表示用 */
-    private ImageView imageView;
+    private ImageView mImageView;
     /** 動画再生用 */
-    private TextureView textureView;
-    private DecodeThread decodeThread = null;
-    private VideoData videoData;
+    private TextureView mTextureView;
+    private DecodeThread mDecodeThread = null;
+    private VideoData mVideoData;
     private DecodeQueueManager mManager;
 
     /**
      * DecoderSurfaceを一意に区別するID
      */
-    private int surfaceNumber;
+    private int mSurfaceNumber;
 
     /**
      * @param surfaceNumber 識別用番号
      * @param imageView ImageView
      */
     DecoderSurface(int surfaceNumber, ImageView imageView, TextureView textureView) {
-        this.imageView = imageView;
-        this.textureView = textureView;
-        this.surfaceNumber = surfaceNumber;
+        this.mImageView = imageView;
+        this.mTextureView = textureView;
+        this.mSurfaceNumber = surfaceNumber;
         mManager = DecodeQueueManager.getInstance();
     }
 
     void setVideoData(VideoData videoData) {
-        this.videoData = videoData;
+        this.mVideoData = videoData;
         play(false);
     }
 
     VideoData getVideoData(){
-        return videoData;
+        return mVideoData;
     }
 
     /**
@@ -58,33 +58,33 @@ class DecoderSurface implements TextureView.SurfaceTextureListener {
      * @param interrupt true:割り込んで再生する false:再生キューに追加する
      */
     void play(boolean interrupt) {
-        Log.d(TAG, "play :" + surfaceNumber);
+        Log.d(TAG, "play :" + mSurfaceNumber);
 
-        if (decodeThread != null && decodeThread.isAlive()) {
-            decodeThread.setVideoData(videoData);
+        if (mDecodeThread != null && mDecodeThread.isAlive()) {
+            mDecodeThread.setVideoData(mVideoData);
         }
 
         if (interrupt) {
-            mManager.interrupt(decodeThread);
+            mManager.interrupt(mDecodeThread);
         }
     }
 
     void release() {
-        videoData = null;
+        mVideoData = null;
 
-        if (decodeThread != null && decodeThread.isAlive()) {
-            decodeThread.stopDecode();
+        if (mDecodeThread != null && mDecodeThread.isAlive()) {
+            mDecodeThread.stopDecode();
         }
 
-        decodeThread = null;
+        mDecodeThread = null;
     }
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface,
                                           int width, int height) {
-        decodeThread = new DecodeThread(id, new DecodeHandler(textureView, imageView),
+        mDecodeThread = new DecodeThread(id, new DecodeHandler(mTextureView, mImageView),
                 new Surface(surface), mManager, width);
-        decodeThread.start();
+        mDecodeThread.start();
         play(false);
     }
 

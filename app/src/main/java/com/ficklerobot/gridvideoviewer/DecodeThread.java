@@ -27,30 +27,30 @@ class DecodeThread extends Thread {
     /**
      * ファイルからのビデオ読み込みが完了したか否か
      */
-    private boolean inputDone = false;
+    private boolean mInputDone = false;
     /**
      * 末尾までデコードが完了した
      */
-    private boolean decodeDone = false;
+    private boolean mDecodeDone = false;
     /**
      * スレッドが停止されたか否か
      */
-    private boolean isStopped = false;
+    private boolean mIsStopped = false;
 
-    private DecoderSurface.VideoData videoData;
+    private DecoderSurface.VideoData mVideoData;
 
-    private MediaExtractor extractor;
-    private MediaCodec decoder;
-    private MediaCodec.BufferInfo bufferInfo;
-    private Surface outSurface;
-    private DecoderSurface.DecodeHandler handler;
-    private DecodeQueueManager queueManager;
+    private MediaExtractor mExtractor;
+    private MediaCodec mDecoder;
+    private MediaCodec.BufferInfo mBufferinfo;
+    private Surface mOutSurface;
+    private DecoderSurface.DecodeHandler mHandler;
+    private DecodeQueueManager mQueueManager;
     /** 動画の再生サイズ(縦横) */
-    private int outSize;
+    private int mOutSize;
     /** DecoderSurfaceの番号 */
-    private int surfaceNumber;
+    private int mSurfaceNumber;
 
-    private long startMs;
+    private long mStartMs;
 
     /**
      *
@@ -64,25 +64,25 @@ class DecodeThread extends Thread {
                  DecodeQueueManager queueManager, int outSize) {
         this.setName("Thread_SF_" + surfaceNumber);
 
-        this.surfaceNumber = surfaceNumber;
-        this.outSurface = outSurface;
-        this.handler = handler;
-        this.queueManager = queueManager;
-        this.outSize = outSize;
+        this.mSurfaceNumber = surfaceNumber;
+        this.mOutSurface = outSurface;
+        this.mHandler = handler;
+        this.mQueueManager = queueManager;
+        this.mOutSize = outSize;
     }
 
     void setDecodeDone(boolean decodeDone) {
-        this.decodeDone = decodeDone;
+        this.mDecodeDone = decodeDone;
     }
 
     void setVideoData(DecoderSurface.VideoData videoData) {
-        this.videoData = videoData;
-        this.inputDone = true;
-        this.decodeDone = true;
+        this.mVideoData = videoData;
+        this.mInputDone = true;
+        this.mDecodeDone = true;
     }
 
     int getSurfaceNumber() {
-        return surfaceNumber;
+        return mSurfaceNumber;
     }
 
     /**
@@ -90,17 +90,17 @@ class DecodeThread extends Thread {
      */
     private boolean readyExtractor(String filePath) {
         boolean isOk = false;
-        bufferInfo = new MediaCodec.BufferInfo();
+        mBufferinfo = new MediaCodec.BufferInfo();
 
         try {
-            extractor = new MediaExtractor();
-            extractor.setDataSource(filePath);
+            mExtractor = new MediaExtractor();
+            mExtractor.setDataSource(filePath);
             isOk = true;
 
         } catch (IOException e) {
             e.printStackTrace();
             Log.d(TAG, "Failed to setDataSource id:" + id);
-            videoData = null;
+            mVideoData = null;
         }
 
         return isOk;
@@ -112,35 +112,35 @@ class DecodeThread extends Thread {
      */
     private void playVideo() {
         do {
-            extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
-            inputDone = false;
-            decodeDone = false;
+            mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+            mInputDone = false;
+            mDecodeDone = false;
 
-            startMs = System.currentTimeMillis();
+            mStartMs = System.currentTimeMillis();
 
             boolean isFirst = true;
 
-            while (!decodeDone && !isStopped) {
+            while (!mDecodeDone && !mIsStopped) {
                 try {
                     decodeVideoFrame();
                 } catch (Exception e) {
-                    handler.sendMessage(
-                            handler.obtainMessage(DecoderSurface.DecodeHandler.MSG_FAILED_TO_DECODE,
+                    mHandler.sendMessage(
+                            mHandler.obtainMessage(DecoderSurface.DecodeHandler.MSG_FAILED_TO_DECODE,
                                     "再生に失敗しました。再生数を減らしてください"));
 
-                    Log.d(TAG, "Failed to playVideo id:" + surfaceNumber + " msg:" + e.getMessage());
+                    Log.d(TAG, "Failed to playVideo id:" + mSurfaceNumber + " msg:" + e.getMessage());
                     break;
                 }
 
                 //前のVideoの画像が残っている場合があるので、
                 //数ミリ秒再生後にサムネイルを消す
-                if (bufferInfo.presentationTimeUs > 200 * 1000 && isFirst) {
-                    handler.sendEmptyMessage(DecoderSurface.DecodeHandler.MSG_DECODE_START);
+                if (mBufferinfo.presentationTimeUs > 200 * 1000 && isFirst) {
+                    mHandler.sendEmptyMessage(DecoderSurface.DecodeHandler.MSG_DECODE_START);
                     isFirst = false;
                 }
             }
 
-        } while (!isStopped && DO_LOOP_VIDEO);
+        } while (!mIsStopped && DO_LOOP_VIDEO);
     }
 
     /**
@@ -148,40 +148,40 @@ class DecodeThread extends Thread {
      */
     private void finishDecode() {
 
-        if (decoder != null) {
+        if (mDecoder != null) {
             try {
-                decoder.stop();
+                mDecoder.stop();
             } catch (IllegalStateException e) {
                 e.printStackTrace();
             }
 
-            decoder.release();
-            decoder = null;
+            mDecoder.release();
+            mDecoder = null;
         }
 
-        if (extractor != null) {
-            extractor.release();
-            extractor = null;
+        if (mExtractor != null) {
+            mExtractor.release();
+            mExtractor = null;
         }
     }
 
     void stopDecode() {
-        Log.d(TAG, "stopDecode id:" + surfaceNumber);
+        Log.d(TAG, "stopDecode id:" + mSurfaceNumber);
 
-        isStopped = true;
-        videoData = null;
-        queueManager.notifyStop();
+        mIsStopped = true;
+        mVideoData = null;
+        mQueueManager.notifyStop();
     }
 
     @Override
     public void run() {
-        isStopped = false;
+        mIsStopped = false;
 
-        while (!isStopped) {
-            queueManager.offerDecoder(this);
+        while (!mIsStopped) {
+            mQueueManager.offerDecoder(this);
 
-            if (queueManager.waitForTurn(this)) {
-                DecoderSurface.VideoData data = videoData;
+            if (mQueueManager.waitForTurn(this)) {
+                DecoderSurface.VideoData data = mVideoData;
 
                 if (data != null) {
                     String filePath = data.videoUri.getPath();
@@ -192,11 +192,11 @@ class DecodeThread extends Thread {
                         if (format != null) {
                             if (data.textureMatrix == null) {
                                 data.textureMatrix =
-                                        makeTextureMatrix(filePath, format, outSize);
+                                        makeTextureMatrix(filePath, format, mOutSize);
                             }
 
-                            if (data == videoData) { //dataが変更されていたら再生しない
-                                handler.sendMessage(handler.obtainMessage(
+                            if (data == mVideoData) { //dataが変更されていたら再生しない
+                                mHandler.sendMessage(mHandler.obtainMessage(
                                         DecoderSurface.DecodeHandler.MSG_DECODE_READY,
                                         data.textureMatrix));
 
@@ -209,7 +209,7 @@ class DecodeThread extends Thread {
                 }
             }
 
-            queueManager.removeDecoder(this);
+            mQueueManager.removeDecoder(this);
         }
     }
 
@@ -218,11 +218,11 @@ class DecodeThread extends Thread {
      */
     private void decodeVideoFrame() {
         // 読み込みが完了していなかったら、ビデオファイルを読み込み、デコーダにデータを挿入する
-        if (!inputDone) {
+        if (!mInputDone) {
             extractVideoFile();
         }
 
-        if (!decodeDone) {
+        if (!mDecodeDone) {
             decodeVideoBuffer();
         }
     }
@@ -231,28 +231,28 @@ class DecodeThread extends Thread {
      * ビデオファイルを読み込み、デコーダにデータを挿入する
      */
     private void extractVideoFile() {
-        int decodeBufIndex = decoder.dequeueInputBuffer(BUFFER_TIMEOUT_USEC);
+        int decodeBufIndex = mDecoder.dequeueInputBuffer(BUFFER_TIMEOUT_USEC);
 
         if (decodeBufIndex >= 0) {
-            ByteBuffer buffer = getInputBuffer(decoder, decodeBufIndex);
+            ByteBuffer buffer = getInputBuffer(mDecoder, decodeBufIndex);
 
-            int readLength = extractor.readSampleData(buffer, 0);
-            long sampleTime = extractor.getSampleTime();
-            int flags = extractor.getSampleFlags();
+            int readLength = mExtractor.readSampleData(buffer, 0);
+            long sampleTime = mExtractor.getSampleTime();
+            int flags = mExtractor.getSampleFlags();
 
             if (readLength < 0) {
                 // 読み込み完了
                 Log.d(TAG, "saw decode EOS.");
-                inputDone = true;
+                mInputDone = true;
 
-                decoder.queueInputBuffer(decodeBufIndex, 0, 0,
+                mDecoder.queueInputBuffer(decodeBufIndex, 0, 0,
                         sampleTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
 
             } else {
                 buffer.limit(readLength);
-                decoder.queueInputBuffer(decodeBufIndex, 0, readLength,
+                mDecoder.queueInputBuffer(decodeBufIndex, 0, readLength,
                         sampleTime, flags);
-                extractor.advance();
+                mExtractor.advance();
             }
         }
     }
@@ -275,7 +275,7 @@ class DecodeThread extends Thread {
      */
     private MediaFormat readyVideoDecoder() {
 
-        MediaFormat srcVideoFormat = selectTrack(extractor);
+        MediaFormat srcVideoFormat = selectTrack(mExtractor);
 
         Log.d(TAG, "startVideoDecoder format:" + srcVideoFormat);
 
@@ -286,19 +286,19 @@ class DecodeThread extends Thread {
         try {
             //TODO HW decoderがハングアップしている場合がある
             //その場合createDecoderByTypeで止まってしまう
-            decoder = MediaCodec.createDecoderByType(
+            mDecoder = MediaCodec.createDecoderByType(
                     srcVideoFormat.getString(MediaFormat.KEY_MIME));
 
-            //decoder.configure( srcVideoFormat, null, null, 0 );
-            decoder.configure(srcVideoFormat, outSurface, null, 0);
-            decoder.start();
+            //mDecoder.configure( srcVideoFormat, null, null, 0 );
+            mDecoder.configure(srcVideoFormat, mOutSurface, null, 0);
+            mDecoder.start();
 
         } catch (Exception e) {
             e.printStackTrace();
-            Log.d(TAG, "Failed to start decoder id:" + id);
+            Log.d(TAG, "Failed to start mDecoder id:" + id);
 
-            if (decoder != null) {
-                decoder.release();
+            if (mDecoder != null) {
+                mDecoder.release();
             }
 
             srcVideoFormat = null;
@@ -410,22 +410,22 @@ class DecodeThread extends Thread {
      */
     private void decodeVideoBuffer() {
         // MediaCodecからデコード結果を受け取る
-        int decodeStatus = decoder.dequeueOutputBuffer(bufferInfo, BUFFER_TIMEOUT_USEC);
+        int decodeStatus = mDecoder.dequeueOutputBuffer(mBufferinfo, BUFFER_TIMEOUT_USEC);
 
         if (checkDecoderStatus(decodeStatus)) {
-            if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG)
+            if ((mBufferinfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG)
                     != 0) {
                 // コンフィグ部分を読み込んだ( 未だデコードは行っていない )
-                Log.d(TAG, "decoder configured (" + bufferInfo.size + " bytes)");
-            } else if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                Log.d(TAG, "mDecoder configured (" + mBufferinfo.size + " bytes)");
+            } else if ((mBufferinfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                     != 0) {
                 // 末尾までデコードされた
                 Log.d(TAG, "Decoder gets BUFFER_FLAG_END_OF_STREAM. ");
-                decodeDone = true;
-            } else if (bufferInfo.presentationTimeUs > 0) {
+                mDecodeDone = true;
+            } else if (mBufferinfo.presentationTimeUs > 0) {
                 //( 動画のタイムスタンプ > 実際の経過時間 )になるまで待つ
-                while (bufferInfo.presentationTimeUs / 1000 >
-                        System.currentTimeMillis() - startMs) {
+                while (mBufferinfo.presentationTimeUs / 1000 >
+                        System.currentTimeMillis() - mStartMs) {
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException e) {
@@ -434,7 +434,7 @@ class DecodeThread extends Thread {
                 }
 
                 // デコードされたバッファをサーフィスに送信(動画の再生)
-                decoder.releaseOutputBuffer(decodeStatus, true);
+                mDecoder.releaseOutputBuffer(decodeStatus, true);
             }
         }
     }
@@ -448,13 +448,13 @@ class DecodeThread extends Thread {
     private boolean checkDecoderStatus(int decoderStatus) {
         if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
             // dequeueOutputBufferの呼び出しがタイムアウト
-            if (inputDone) {
-                Log.d(TAG, "no output from decoder available BUT the input is done.");
+            if (mInputDone) {
+                Log.d(TAG, "no output from mDecoder available BUT the input is done.");
             }
         } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
-            Log.d(TAG, "decoder output buffers changed");
+            Log.d(TAG, "mDecoder output buffers changed");
         } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-            Log.d(TAG, "decoder output format changed");
+            Log.d(TAG, "mDecoder output format changed");
         } else if (decoderStatus < 0) {
             Log.d(TAG, "unexpected result from encoder.dequeueOutputBuffer: "
                     + decoderStatus);
