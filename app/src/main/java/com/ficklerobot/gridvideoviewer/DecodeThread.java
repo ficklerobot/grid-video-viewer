@@ -220,7 +220,6 @@ class DecodeThread extends Thread {
         // 読み込みが完了していなかったら、ビデオファイルを読み込み、デコーダにデータを挿入する
         if (!inputDone) {
             extractVideoFile();
-            // TODO: returnする？
         }
 
         if (!decodeDone) {
@@ -449,7 +448,6 @@ class DecodeThread extends Thread {
     private boolean checkDecoderStatus(int decoderStatus) {
         if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
             // dequeueOutputBufferの呼び出しがタイムアウト
-            // TODO inputDoneしてからequeueOutputBufferを呼び出す？
             if (inputDone) {
                 Log.d(TAG, "no output from decoder available BUT the input is done.");
             }
